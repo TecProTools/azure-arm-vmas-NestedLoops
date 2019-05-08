@@ -1,0 +1,32 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "vmLoopId": { "type": "int", "defaultValue": 0 },
+    "vmName": { "type": "string" },
+    "vmNewMngDataDiskCount": { "type": "int" }
+  },
+  "variables": {
+    "dataDisksCount":  "[parameters('vmNewMngDataDiskCount')]",
+    "dataDiskSize": 128,
+    "copy": [
+      {
+        "name": "dataMngdDisks",
+        "count": "[variables('dataDisksCount')]",
+        "input": {
+          "name": "[concat(parameters('vmName'),'-', copyIndex('dataMngdDisks'),parameters('vmLoopId'), '-dmd')]",
+          "diskSizeGB": "[variables('dataDiskSize')]",
+          "lun": "[copyIndex('dataMngdDisks')]",
+          "createOption": "Empty",
+          "managedDisk": {
+            "storageAccountType": "Standard_LRS"
+          }
+        }
+      }
+    ]
+  },
+  "resources": [],
+  "outputs": {
+    "dataMngdDisksOut": { "value": "[variables('dataMngdDisks')]", "type" : "array" }
+  }
+}

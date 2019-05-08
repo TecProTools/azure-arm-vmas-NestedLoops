@@ -1,0 +1,152 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "saIds": {
+      "type": "object",
+      "defaultValue": {
+        "vmasRg": {
+          "type": "object",
+          "value": {
+            "salocation": "[resourceGroup().location]",
+            "vmasRgName": "tpt-algoR-vms-rg",
+            "copyVmNames":  [{"name": "tpt-ar-vm50"},{"name": "tpt-ar-vm51"}],
+            "vmNewMngDataDiskCount":  2,
+            "vmSize":  "Standard_B2s" 
+          }
+        },
+        "opsRg": {
+          "type": "object",
+          "value": {
+            "opsRgName": "tpt-algoR-ops-rg",
+            "saOpsStrgAccName": "tptalgorigsops10strgacc",
+            "opsPrjStrgContainerName":  "prjtplatesandscripts",
+            "kvSecretVmAdminName":  "Chris",
+            "kvSecretVmAdminPwordName": "Chris",
+            "kvRgName": "kdy-algoR-ops-rg",
+            "kvName":  "kdy-algoRigs-kv",
+            "kvSubscriptionId": "replaceWithSubscriptionId"
+          }
+        }
+      }
+    },
+    "containerSasToken": {
+      "type": "securestring"
+    }
+  },
+  "variables": {
+    "spike": "[bool('false')]",
+    "saIds": "[parameters('saIds')]",
+    "vmasRg": "[variables('saIds').vmasRg.value]",
+    "opsRg": "[variables('saIds').opsRg.value]",
+    "containerSasToken": "[parameters('containerSasToken')]",
+    "salocation": "[variables('vmasRg').salocation]",
+    "vmasRgName": "[variables('vmasRg').vmasRgName]",
+    "saOpsStrgAccName": "[variables('opsRg').saOpsStrgAccName]",
+    "opsPrjStrgContainerName": "[variables('opsRg').opsPrjStrgContainerName]",
+    "prjTplatesScriptsLocation": "[string(concat('https://', variables('saOpsStrgAccName'), '.blob.core.windows.net/', variables('opsPrjStrgContainerName'), '/'))]",
+    "kvRgName":"[variables('opsRg').kvRgName]",
+    "kvName":"[variables('opsRg').kvName]",
+    "kvId": "[resourceId(variables('kvRgName'), 'Microsoft.KeyVault/vaults', variables('kvName'))]",
+    "kvSecretVmAdminName": "[variables('opsRg').kvSecretVmAdminName]",
+    "kvSecretVmAdminPwordName": "[variables('opsRg').kvSecretVmAdminPwordName]",
+    "vmNames": "[variables('vmasRg').copyVmNames]",
+    "vmNamesCount": "[length(variables('vmNames'))]",
+    "vmNewMngDataDiskCount": "[variables('vmasRg').vmNewMngDataDiskCount]",
+    "vmSize": "[variables('vmasRg').vmSize]",
+    "tstEmptyArray": "[take(createArray(json('null')),0)]"
+  },
+  "resources": [
+    {
+      "condition": "[not(variables('spike'))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2018-05-01",
+      "name": "[concat('InstallVM-', variables('vmNames')[copyindex()].name)]",
+      "copy": {
+        "name": "installVmAssembliesLoop",
+        "count": "[variables('vmNamesCount')]"
+      },
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": { 
+          "uri": "[uri(variables('prjTplatesScriptsLocation'), concat('compute/virtualMachines/assemble-vma-new-osmd-0toN-dmd-kv.json', variables('containerSasToken')))]"
+        },
+        "parameters": {
+          "adminLogin": {
+            "value": "[variables('kvSecretVmAdminName')]"
+          },           
+          "adminPassword": {                        
+            "reference": {
+              "keyVault": {
+                "id": "[variables('kvId')]"
+              },
+              "secretName": "[variables('kvSecretVmAdminPwordName')]"
+            }
+          },
+          "salocation": {
+            "value": "[variables('salocation')]"
+          },
+          "assetLocation": {
+            "value": "[variables('prjTplatesScriptsLocation')]"
+          },
+          "containerSasToken": {
+            "value":  "[variables('containerSasToken')]"
+          },
+          "vmasRgName": { 
+            "Value": "[variables('vmasRgName')]"
+          },
+          "vmLoopId": { 
+            "Value": "[copyindex()]"
+          },
+          "vmName": { 
+            "Value": "[variables('vmNames')[copyindex()].name]"
+          },
+          "vmNewMngDataDiskCount": { 
+            "Value": "[variables('vmNewMngDataDiskCount')]"
+          },
+          "vmSize": { 
+            "Value": "[variables('vmSize')]"
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {   
+    "prjAssetsLocationOut": {
+      "value": "[variables('prjTplatesScriptsLocation')]",
+      "type" : "string"
+    },
+    "adminPassword": {
+      "value": "[resourceId( variables('kvRgName'), 'Microsoft.KeyVault/vaults', variables('kvName'))]",
+      "type" : "string"
+    },
+    "kvRgNameOut": {
+      "value": "[variables('kvRgName')]",
+      "type" : "string"
+    },
+    "kvNameOut": {
+      "value": "[variables('kvName')]",
+      "type" : "string"
+    },
+    "kvSecretVmAdminNameOut": {
+      "value": "[variables('kvSecretVmAdminName')]",
+      "type" : "string"
+    },
+    "kvSecretVmAdminPwordNameOut": {
+      "value": "[variables('kvSecretVmAdminPwordName')]",
+      "type" : "string"
+    },
+    "nullDmdArrayOut": {
+      "value": "[variables('tstEmptyArray')]",
+      "type" : "array"
+    },
+    "nulArrayOut": {
+      "value": "[empty(variables('tstEmptyArray'))]",
+      "type" : "bool"
+    },
+    "opsPrjStrgContainerNameOut": {
+      "value": "[variables('opsPrjStrgContainerName')]",
+      "type" : "string"
+    }
+  }
+}

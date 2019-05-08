@@ -1,0 +1,150 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "saIds": {
+      "type": "object",
+      "defaultValue": {
+        "vmasRg": {
+          "type": "object",
+          "value": {
+            "salocation": "[resourceGroup().location]",
+            "vmasRgName": "tpt-algoR-vms-rg",
+            "copyVmNames":  [{"name": "tpt-ar-vm50"},{"name": "tpt-ar-vm51"}],
+            "providerVmExtensionNames": ["antiMalware", "bgInfo"],
+            "vmCustomScriptVmExtNames": [
+              "https://tptalgorigsops10strgacc.blob.core.windows.net/prjtplatesandscripts/compute/vmExtensions/vmExtScripts/winRM/ConfigureWinRmAndLog.ps1",
+              "https://tptalgorigsops10strgacc.blob.core.windows.net/prjtplatesandscripts/compute/vmExtensions/vmExtScripts/winRM/initialize-emptyDisk-onNomVm.ps1"
+            ]
+          }
+        },
+        "opsRg": {
+          "value": {
+            "opsRgName": "tpt-algoR-ops-rg",
+            "saOpsStrgAccName": "tptalgorigsops10strgacc",
+            "opsPrjStrgContainerName": "prjtplatesandscripts",
+            "kvSecretVmAdminName": "Chris",
+            "kvSecretVmAdminPwordName": "Chris",
+            "kvRgName": "kdy-algoR-ops-rg",
+            "kvName": "kdy-algoRigs-kv",
+            "kvSubscriptionId": "replaceWithSubscriptionId"
+          }
+        }
+      }
+    },
+    "containerSasToken": {
+      "type": "string"
+    }
+  },
+  "variables": {
+    "spike": "[bool('false')]",
+    "saIds": "[parameters('saIds')]",
+    "vmasRg": "[variables('saIds').vmasRg.value]",
+    "opsRg": "[variables('saIds').opsRg.value]",
+    "opsRgName": "[variables('opsRg').opsRgName]",
+    "strgAccName": "[variables('opsRg').saOpsStrgAccName]",
+    "opsStrgContainerName" : "[variables('opsRg').opsPrjStrgContainerName]",
+    "assetLocation": "[concat('https://', variables('strgAccName'), '.blob.core.windows.net/', variables('opsStrgContainerName'), '/')]",
+    "vmNames": "[variables('vmasRg').copyVmNames]",
+    "vmNamesCount": "[length(variables('vmNames'))]", 
+    "providerVmExtNames": "[variables('vmasRg').providerVmExtensionNames]",
+    "providerVmExtNamesIsEmpty": "[if(empty(variables('providerVmExtNames')), json('true'), json('false'))]",
+    "vmCustomScriptVmExtNames": "[variables('vmasRg').vmCustomScriptVmExtNames]"
+  },
+  "resources": [
+    {
+      "condition": "[not(variables('providerVmExtNamesIsEmpty'))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2018-05-01",
+      "name":  "[concat('Install-providerVmExts-ForVm-', variables('vmNames')[copyIndex()].name)]",
+      "copy": {
+        "name": "installpVmExtLoop",
+        "count": "[variables('vmNamesCount')]"
+      },
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[concat(uri(variables('assetLocation'), concat('compute/vmExtensions/install-0toN-pVmExts.json')), parameters('containerSasToken'))]",
+          "contentVersion": "1.0.0.0"
+        },
+        "debugSetting": {
+          "detailLevel": "requestContent, responseContent"
+       },
+        "parameters": {
+          "providerVmExtNames": {
+            "value": "[variables('providerVmExtNames')]"
+          },
+          "assetLocation": {
+            "value": "[variables('assetLocation')]"
+          },
+          "containerSasToken": {
+            "value": "[parameters('containerSasToken')]"
+          },
+          "vmName": { 
+            "value": "[variables('vmNames')[copyIndex()].name]"
+          }
+        }
+      }
+    },
+    {
+      "condition": "[not(variables('spike'))]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2018-05-01",
+      "name":  "[concat('Install-customScriptVmExts-ForVm-', variables('vmNames')[copyIndex()].name)]",
+      "copy": {
+        "name": "installcVmExtLoop",
+        "count": "[variables('vmNamesCount')]"
+      },
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[concat(uri(variables('assetLocation'), concat('compute/vmExtensions/provision-customScript-vmExts.json')), parameters('containerSasToken'))]",
+          "contentVersion": "1.0.0.0"
+        },
+        "debugSetting": {
+          "detailLevel": "requestContent, responseContent"
+       },
+        "parameters": {
+          "opsRgName": {
+            "value": "[variables('opsRgName')]"
+          },
+          "strgAccName": {
+            "value": "[variables('strgAccName')]"
+          },
+          "vmName": { 
+            "value": "[variables('vmNames')[copyIndex()].name]"
+          },
+          "vmCustomScriptVmExtNames": { 
+            "value": "[variables('vmCustomScriptVmExtNames')]"
+          }
+        }
+      }
+    }    
+  ],
+  "outputs": {
+    "vmNamesOut": {
+      "type": "array",
+      "value": "[variables('vmNames')]"
+    },
+    "vmNamesCountOut": {
+      "type": "int",
+      "value": "[variables('vmNamesCount')]"
+    },
+    "pVmExtNamesOut": {
+      "type": "array",
+      "value": "[variables('providerVmExtNames')]"
+    },
+    "pVmExtNamesCountOut": {
+      "type": "int",
+      "value": "[length(variables('providerVmExtNames'))]"
+    },
+    "pVmExtNamesIsEmptyOut": {
+      "type": "bool",
+      "value": "[variables('providerVmExtNamesIsEmpty')]"
+    },
+    "vmCustomScriptVmExtNamesOut": {
+      "type": "array",
+      "value": "[variables('vmCustomScriptVmExtNames')]"
+    }
+  }
+}

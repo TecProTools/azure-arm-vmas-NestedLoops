@@ -1,0 +1,77 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "providerVmExtNames": {
+      "type": "array"
+    },
+    "assetLocation": {
+      "type": "string",
+      "metadata": {
+        "description": "The location of resources such as templates and DSC modules that the script is dependent"
+      }
+    },
+    "containerSasToken": {
+      "type": "string"
+    },
+    "vmName": { 
+      "type": "string",
+      "defaultValue": "myDummyVmName"
+    }
+  },
+  "variables": {
+    "pVmExtNamesRaw": "[parameters('providerVmExtNames')]",
+    "pVmExtNamesIsEmpty": "[if(empty(variables('pVmExtNamesRaw')), json('true'), json('false'))]",
+    "pVmExtNames": "[if(variables('pVmExtNamesIsEmpty'), concat(variables('pVmExtNamesRaw'), array('dummyVmExt')), variables('pVmExtNamesRaw'))]",
+    "pVmExtNamesCount": "[if(variables('pVmExtNamesIsEmpty'), 1, length(variables('pVmExtNames')))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2016-02-01",
+      "name":  "[concat('Install-providerExtensions-ForVm-', parameters('vmName'), '-', variables('pVmExtNames')[copyIndex()])]",
+      "copy": {
+        "name": "installPVmExtLoop",
+        "count": "[variables('pVmExtNamesCount')]",
+        "mode": "serial"
+      },
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[concat(parameters('assetLocation'), concat('compute/vmExtensions/provision-pVmExt-', variables('pVmExtNames')[copyIndex()], '.json'), parameters('containerSasToken'))]",
+          "contentVersion": "1.0.0.0"
+        },
+        "debugSetting": {
+          "detailLevel": "requestContent, responseContent"
+       },
+        "parameters": {
+          "virtualMachineName": {
+            "value": "[parameters('vmName')]"
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "vmNameOut": {
+      "type": "string",
+      "value": "[parameters('vmName')]"
+    },
+    "pVmExtNamesRawOut": {
+      "type": "array",
+      "value": "[variables('pVmExtNamesRaw')]"
+    },
+    "pVmExtNamesIsEmptyOut": {
+      "type": "bool",
+      "value": "[variables('pVmExtNamesIsEmpty')]"
+    },
+    "pVmExtNamesOut": {
+      "type": "array",
+      "value": "[variables('pVmExtNames')]"
+    },
+    "pVmExtNamesCountOut": {
+      "type": "int",
+      "value": "[variables('pVmExtNamesCount')]"
+    }
+  }
+}

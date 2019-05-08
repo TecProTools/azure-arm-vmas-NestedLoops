@@ -1,0 +1,66 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "opsRgName": {
+      "type": "string",
+      "defaultValue": "myDummyOpsRgName" 
+    },
+    "strgAccName": { 
+      "type": "string",
+      "defaultValue": "myDummystrgAccName" 
+    },
+    "vmName": { 
+      "type": "string",
+      "defaultValue": "myDummyVmName" 
+    },
+    "vmCustomScriptVmExtNames": { 
+      "type": "array",
+      "defaultValue": ["myDummyCsVmExtName"] 
+    }
+  },
+  "variables": {
+    "strgAccName": "[parameters('strgAccName')]",
+    "strgAccId": "[resourceId(parameters('opsRgName'), 'Microsoft.Storage/storageAccounts', variables('strgAccName'))]",
+    "vmName": "[parameters('vmName')]",
+    "vmCustomScriptVmExtNames": "[parameters('vmCustomScriptVmExtNames')]",
+    "hostDNSNameScriptArgument": "[concat (variables('vmName'), '.southeastasia.cloudapp.azure.com')]"
+  },
+  "resources": [
+    {
+      "condition": "[not(empty(variables('vmCustomScriptVmExtNames')))]",
+      "type": "Microsoft.Compute/virtualMachines/extensions",
+      "apiVersion": "2018-10-01",
+      "name": "[concat(variables('vmName'),'/WinRMCustomScriptExtension')]",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "publisher": "Microsoft.Compute",
+        "type": "CustomScriptExtension",
+        "typeHandlerVersion": "1.9",
+        "autoUpgradeMinorVersion":true,
+        "settings": {
+          "fileUris": "[variables('vmCustomScriptVmExtNames')]"
+        },
+        "protectedSettings": {
+          "commandToExecute": "[concat('powershell -ExecutionPolicy Unrestricted -file ./compute/vmExtensions/vmExtScripts/winRM/ConfigureWinRmAndLog.ps1 ',variables('hostDNSNameScriptArgument'))]",          
+          "storageAccountName": "[variables('strgAccName')]",
+          "storageAccountKey": "[listKeys(variables('strgAccId'), providers('Microsoft.Storage','storageAccounts').apiVersions[0]).keys[0].value]"
+        }
+      }
+    } 
+  ],
+  "outputs": {
+    "vmNameOut": {
+      "type": "string",
+      "value": "[variables('vmName')]"
+    },
+    "vmCustomScriptVmExtNamesOut": {
+      "type": "array",
+      "value": "[variables('vmCustomScriptVmExtNames')]"
+    },
+    "hostDNSNameScriptArgumentOut": {
+      "type": "string",
+      "value": "[variables('hostDNSNameScriptArgument')]"
+    }
+  }
+}

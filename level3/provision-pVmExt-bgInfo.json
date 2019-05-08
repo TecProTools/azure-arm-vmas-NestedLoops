@@ -1,0 +1,43 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "virtualMachineName": {
+      "type": "string",
+      "defaultValue": "kdy-ar-11"
+    }
+  },
+  "variables": {
+    "spike": "[bool('false')]",
+    "vmName" : "[parameters('virtualMachineName')]"
+  },
+  "resources": [
+    {
+      "condition": "[not(variables('spike'))]",
+      "type": "Microsoft.Compute/virtualMachines/extensions",
+      "apiVersion": "2018-06-01",
+      "name": "[concat(variables('vmName'),'/BGInfo')]", 
+      "location": "[resourceGroup().location]", 
+      "tags": {},
+      "properties": {
+        "forceUpdateTag": "true",
+        "publisher": "Microsoft.Compute", 
+        "type": "BGInfo", 
+        "typeHandlerVersion": "2.1", 
+        "autoUpgradeMinorVersion": true,
+        "settings": {},
+        "protectedSettings": {}
+      }
+    }
+  ],
+  "outputs": {
+    "spikeOut": {
+      "type": "bool",
+      "value": "[variables('spike')]"
+    },
+    "vmNameOut": {
+      "type": "string",
+      "value": "[variables('vmName')]"
+    }
+  }
+}

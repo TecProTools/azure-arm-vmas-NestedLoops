@@ -1,0 +1,143 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "adminLogin": { "type": "string", "defaultvalue": "Chris2" },
+    "adminPassword": { "type": "securestring", "defaultvalue": "replaceWithPassword" },
+    "salocation": { "type": "string" },
+    "assetLocation": {
+      "type": "string",
+      "metadata": {
+        "description": "https://kdyalgorigsops10strgacc.blob.core.windows.net/prjtplatesandscripts"
+      }
+    },
+    "containerSasToken": { "type": "securestring" },
+    "vmasRgName": { "type": "string"},
+    "vmLoopId": { "type": "int", "defaultValue": 0 },
+    "vmName": { "type": "string" },
+    "vmNewMngDataDiskCount": { "type": "int", "defaultValue": 0 },
+    "vmSize": { "type": "string" }
+  },
+  "variables": {
+    "spike": "[bool('false')]",
+    "location": "[parameters('salocation')]",    
+    "vmName": "[parameters('vmName')]",
+    "vmSize":  "[parameters('vmSize')]",
+    "osMngDiskName": "[concat(variables('vmName'), '-osmd')]",
+    "nicName": "[concat(variables('vmName'),'-nic')]",
+    "nicId": "[resourceId(parameters('vmasRgName'), 'Microsoft.Network/networkInterfaces', variables('nicName'))]",
+    "vmNewMngDataDiskCount": "[parameters('vmNewMngDataDiskCount')]",
+    "tstEmptyArray": "[take(createArray(json('null')),0)]",
+    "newDmdTplateLinkUri":  "[concat(uri(parameters('assetLocation'), concat('compute/virtualMachines/assemble-new-dmd.json')), parameters('containerSasToken'))]",
+    "newDmdTplateLinkName": "[concat('AssembleDataManagedDisks', parameters('vmLoopId'))]"
+  },
+  "resources": [
+    {
+      "condition": "[greater(variables('vmNewMngDataDiskCount'), 0)]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2015-01-01",
+      "name": "[variables('newDmdTplateLinkName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[variables('newDmdTplateLinkUri')]"
+        },
+        "parameters": {
+          "vmLoopId": { 
+            "value": "[parameters('vmLoopId')]"
+          },
+          "vmName": { 
+            "value": "[parameters('vmName')]"
+          },
+          "vmNewMngDataDiskCount": { 
+            "value": "[variables('vmNewMngDataDiskCount')]"
+          }
+        }
+      }
+    },
+    {
+      "condition": "[not(variables('spike'))]", 
+      "type": "Microsoft.Compute/virtualMachines",
+      "apiVersion": "2018-10-01",
+      "name": "[variables('vmName')]",
+      "location": "[variables('location')]",
+      "dependsOn": [
+        "[variables('newDmdTplateLinkName')]"
+      ],
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[variables('vmSize')]"
+        },
+        "osProfile": {
+          "computerName": "[variables('vmName')]",
+          "adminUsername": "[parameters('adminLogin')]",
+          "adminPassword": "[parameters('adminPassword')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "MicrosoftWindowsServer",
+            "offer": "WindowsServer",
+            "sku": "2012-R2-Datacenter",
+            "version": "latest"
+          },
+          "osDisk": {
+            "osType": "Windows",
+            "name": "[variables('osMngDiskName')]",
+            "caching": "ReadWrite",
+            "createOption": "FromImage",
+            "managedDisk":{
+              "storageAccountType":"Standard_LRS"
+            },
+            "diskSizeGB": 128 
+          },
+          "dataDisks": "[if(greater(variables('vmNewMngDataDiskCount'), 0), reference(variables('newDmdTplateLinkName')).outputs.dataMngdDisksOut.value, variables('tstEmptyArray'))]"
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[variables('nicId')]"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "adminUserNameOutput": {
+      "value": "[parameters('adminLogin')]",
+      "type" : "string"
+    },
+    "adminPasswordOutput": {
+      "value": "[parameters('adminPassword')]",
+      "type" : "securestring"
+    },
+    "vmMngDataDiskCountOut": {
+      "value": "[variables('vmNewMngDataDiskCount')]",
+      "type" : "int"
+    },
+    "conditionOut": {
+      "value": "[greater(variables('vmNewMngDataDiskCount'), 0)]",
+      "type" : "bool"
+    },
+    "assembleDataManagedDisksOut": {
+      "value": "[if(greater(variables('vmNewMngDataDiskCount'), 0), reference(concat('AssembleDataManagedDisks', parameters('vmLoopId'))).outputs.dataMngdDisksOut.value, array(json('null')))]",
+      "type" : "array"
+    },
+    "nullDmdArrayOut": {
+      "value": "[variables('tstEmptyArray')]",
+      "type" : "array"
+    },
+    "nulArrayOut": {
+      "value": "[empty(variables('tstEmptyArray'))]",
+      "type" : "bool"
+    },
+    "deploymentNameOut": {
+      "value":"[concat('AssembleDataManagedDisks', parameters('vmLoopId'))]",
+      "type" : "string"
+    },
+    "newDmdTplateLinkUri": {
+      "value":"[variables('newDmdTplateLinkUri')]",
+      "type" : "string"
+    }
+  }
+}
